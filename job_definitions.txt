@@ -1,0 +1,46 @@
+# all supported type
+	- job
+	- job-template
+	- project
+	- job-group
+	- view
+	- view-template
+	- builder (marco) : work as function 
+	- id
+	- folder	
+	- raw
+	- defaults
+	- 
+
+
+#JOB
+#Job Parameters:
+	name: job-name
+	# default is freestyle
+	project-type: freestyle | maven | multijob | flow | pipeline | externaljob
+	defaults: global 
+	disabled: false
+	# name of the job to be displayed in web GUI != name property above
+	display-name: 'MY_FIRST_JOB'
+	concurrent: false
+	# default to Jenkins default configuaration
+	workspace: /path/to/workspace
+	# which Jenkins folder to upload the job to
+	folder: 
+	# This parameter is only valid for matrix type jobs.
+	child-workspace:
+	# Number of seconds to wait between consecutive runs of this job. Defaults to 0
+	quite-period: 0
+	block-downstream: false
+	block-upstream: false
+	# use for triggering build remotely
+	auth-token:
+	# number of times Jenkins try to create this job if fail
+	retry-count: 1
+	# running in what node
+	node: NodeLabel1 || NodeLabel2
+	jdk: 
+	# if present, this section should contain a single xml entry
+	raw:
+
+#Job Template as job_create_function()

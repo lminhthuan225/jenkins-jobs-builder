@@ -1,0 +1,65 @@
+
+#SEPECIFY CONFIG 
+--conf /path/to/jenkins_jobs.init 
+jenkins-jobs --conf ...
+
+#TEST
+	# -o, --config-xml is optional
+	jenkins-jobs test /path/to/defs.<yaml | json> -o /path/to/output
+	jenkins-jobs test /path/to/defs.<yaml | json> -o /path/to/output --config-xml
+
+	#multiple test
+	jenkins-jobs test /path/to/defs1:/path/to/defs2:...
+
+
+#UPDATE
+	# Created first time, update from the second time running
+	jenkins-jobs update /path/to/defs
+
+	# run specific job/views in defs
+	jenkins-jobs update /path/to/defs <job_name | view_name>
+
+	# run parallel 
+	jenkins-jobs update --workers <0 | 2 | higher> /path/to/defs
+
+	# update views-only or jobs-only
+	jenkins-jobs update <--views-only | --jobs-only> <job_name>
+	
+	For a tree:
+  /path/
+    to/
+      defs/
+        ci_jobs/
+          manual/
+        release_jobs/
+          manual/
+        qa_jobs/
+      globals/
+        macros/
+        templates/
+        special/
+
+	jenkins-jobs update -r -x man*:./qa_jobs -x /path/to/globals/special \
+	/path/to/defs:/path/to/globals
+
+	-x for exclude 
+	excluded folder:  qa_jobs, ci_jobs/manual, release_jobs/manual, and globals/special qa_jobs, ci_jobs/manual, release_jobs/manual, and globals/special
+
+#DELETE
+
+jenkins-jobs delete <job_name1> <job_name2> ...
+jenkins-jobs delete <--views-only | --jobs-only> <job_name>
+jenkins-jobs update --delete-old /path/to/defs
+
+   #DANGER	
+	# delete all jobs and views
+	jenkins-jobs delete-all
+	
+	# delete all jobs or views
+	jenkins-jobs delete-all <--views-only | --jobs-only>
+
+#Globbed parameters
+# update jobs/views the only have 'foo in their name'
+jenkins-jobs update ./myjobs \*foo\*
+jenkins-jobs delete --path ./myjobs \*foo\*
+

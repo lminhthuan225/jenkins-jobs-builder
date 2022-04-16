@@ -1,0 +1,29 @@
+# all supported type
+	- job
+	- job-template
+	- project
+	- job-group
+	- view
+	- view-template
+	- builder (marco) : work as function 
+	- id
+	- folder	
+	- raw
+	- defaults
+	- 
+
+
+#JOB
+# - parameters
+	#default is freestyle
+	name: job-name
+	project-type: freestyle | maven | multijob | flow | pipeline | externaljob
+	defaults: global
+	description: 'My job description'
+	# False by default
+	disabled: false
+	# Name of the job to display in web GUI != name proprety above 
+	display-name: 'MY_FIRST_JOB'
+	c
+oncurrent: false
+	

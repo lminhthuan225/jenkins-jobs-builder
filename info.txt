@@ -1,0 +1,2 @@
+#Default jenkins config path
+/etc/jenkins_jobs/jenkins_jobs.ini

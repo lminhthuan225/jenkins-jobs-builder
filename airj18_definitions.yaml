@@ -1,0 +1,117 @@
+- view-template:
+    name: '{name}-jjb-view'
+    description: 'AirJ18 View'
+    view-type: list
+    regex: ''
+
+- scm:
+    name: AirJ18-Repository
+    scm:
+      - git:
+          url: https://github.com/skqist225/AirJ18.git
+          name: origin
+          repo-name: AirJ18
+          clean:
+            before: true
+          branches:
+            - origin/main
+
+- scm: 
+    name: linux-shell-script-Repository
+    scm:
+      - git:
+          url: https://github.com/lminhthuan225/linux-shell-script.git
+          repo-name: linux-shell-script
+          clean:
+            before: true
+          branches:
+            - origin/main
+
+- scm:
+    name: two-Repository
+    scm:
+      - linux-shell-script-Repository
+      - AirJ18-Repository 
+
+- job-template:
+    name: 'Checkout_SC_{repo_name}'
+    display-name: 'Checkout_SC_{repo_name}'
+    description: 'written by: {maintainer}'
+    properties:
+    - build-discarder:
+        days-to-keep: 7
+        num-to-keep: 5
+        artifact-days-to-keep: 14
+        artifact-num-to-keep: 1
+    scm: 
+      - '{repo_name}-Repository'
+    publishers:
+      - archive:
+          artifacts: '*'
+          allow-empty: true
+          latest-only: true
+          only-if-success: true
+
+- job-template:
+    name: '{job_name}-pipeline'
+    description: 'written by: {maintainer}'
+    id: 'AirJ18-pipeline-id'
+    project-type: pipeline
+    properties:
+    - build-discarder:
+        days-to-keep: 7
+        num-to-keep: 5
+        artifact-days-to-keep: 14
+        artifact-num-to-keep: 1
+    triggers: 
+      - pollscm:
+          cron: 'H/30 1 * * 1-5' #“At every 30th minute past hour 1 on every day-of-week from Monday through Friday.”
+          ignore-post-commit-hooks: True
+    sandbox: true
+    project_prefix: Checkout_SC
+    dsl: |
+      def buildResult = ""
+      node {{
+        stage('Pull SC from two repositories') {{
+          parallel agentNode: {{
+            node("agent1") {{
+              buildResult = build job: "{project_prefix}_linux-shell-script"
+            }}
+          }},
+          masterNode: {{ 
+            build job: "{project_prefix}_AirJ18"
+          }}
+        }}
+        stage('Update Jenkins plugins') {{
+          def buildNumber =  buildResult.getNumber()
+          def jobName = buildResult.buildVariables.JOB_NAME
+          
+          sh "~/jobs/$jobName/builds/$buildNumber/archive/updateJenkins.sh 8888"
+        }}
+        stage('Build source code from AirJ18-Repository') {{
+          sh "mvn clean packge -f */pom.xml"
+        }}
+      }}
+
+
+#            build job: "{project_prefix}_AirJ18" 
+
+- job-group:
+    name: 'pineline-job-group'
+    repo_name:
+      - AirJ18
+      - linux-shell-script
+    jobs:
+      - 'Checkout_SC_{repo_name}':
+          maintainer: thuanle
+      - 'AirJ18-pipeline-id':
+          job_name: AirJ18
+          maintainer: skqist225(lminhthuan)
+
+- project:
+    name: airj18-project
+    # views:
+    #   - '{name}-jjb-view'
+    jobs: 
+      - 'pineline-job-group'
+    

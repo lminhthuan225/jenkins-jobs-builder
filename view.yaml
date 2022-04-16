@@ -1,0 +1,98 @@
+- view-template:
+    name: '{name}-jjb-view'
+    description: 'AirJ18 View'
+    view-type: list
+    regex: 'test-view-.*'
+
+#Marco 
+- builder:
+    name: 'println'
+    builders:
+      - shell: 'echo Hello world version {version}.0'
+
+#call marco inside a marco
+- builder:
+    name: 'extendsprintln'
+    builders:
+      - println:
+          version: 1
+
+- job-template:
+    name: '{name}-job-{version}'
+    builders:
+      - extendsprintln
+      - println:
+          version: '{version}'
+
+- job-template:
+    name: '{name}-job'
+    branch: main #default variable's value
+    parameters:
+      - string:
+          name: BRANCH
+          default: '{branch}'
+    scm: 
+      - git: 
+          url: https://github.com/lminhthuan225/linux-shell-script.git
+          refspec: 'refs/heads/{branch|main}'
+
+#create job in a folder
+# - defaults:
+#     name: folder1
+#     folder: folder1-jobs
+
+# - job:
+#     name: ruby-jobs/rspec
+#     defaults: folder1
+#     builders:
+#       - shell: |
+#           rvm use --create ruby-2.3.0@rspec
+#           bundle install
+#           bundle exec rspec
+
+#job have id to be called in project
+- job-template:
+    name: 'template-test-ids-{num}-{type}'
+    id: not-as-simple-template
+    builders:
+      - shell: |
+          echo "Template name: {template-name}"
+          echo "Job name: template-test-ids-{num}-{type}"
+      - shell: |
+         echo "{test_var}"
+
+
+# parallel [
+#   2a: build job "job2a"
+#   2b: node "agent1" {{
+#     sh "echo {isay}"
+#   }}
+# ]
+
+- job-group: 
+    name: '{name}-tests'
+    jobs:
+      - '{name}-unit-tests'
+        isay: 'hello'
+
+- project:
+    name: AirJ18
+    views:
+      - '{name}-jjb-view'
+    # version:
+    #   - 2
+    #   - 3 
+    #   - 4
+    # num: 22
+    # type:
+    #   - testJob
+    #   - reviewJob
+    jobs: 
+      - 'main-airj18-view-job'
+      # - '{name}-job-{version}'
+      # - '{name}-job':
+          # name: 'GREAT'
+          # branch: main
+      # - 'not-as-simple-template':
+          # test_var: ok
+
