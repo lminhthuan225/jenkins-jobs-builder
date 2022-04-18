@@ -28,6 +28,7 @@
         view-type: list
         job-name:
           - 'AirJ18-pipeline'
+          - 'Build-Docker-Agent'
       - name: '{name}-visual-pipeline-view'
         description: 'AirJ18 Pipeline view'
         view-type: pipeline
@@ -80,11 +81,25 @@
     scm: 
       - '{repo_name}-Repository'
     publishers:
-      - archive:
-          artifacts: '*'
-          allow-empty: true
-          latest-only: true
-          only-if-success: true
+      - conditional-publisher:
+          - condition-kind: regexp
+            condition-expression: '^{repo_name}$'
+            condition-searchtext: '{repo_name}'
+            action:
+              - archive:
+                  artifacts: '*'
+                  allow-empty: true
+                  latest-only: true
+                  only-if-success: true
+          - condition-kind: regexp
+            condition-expression: '^{repo_name}$'
+            condition-searchtext: 'AirJ18'
+            action:
+              - archive:
+                  artifacts: 'Backend/**'
+                  allow-empty: true
+                  latest-only: true
+                  only-if-success: true
 
 - build: 
     name: publishEc2
@@ -94,6 +109,27 @@
           target: 'dest/dir'
           source: 'base/source/dir/**'
           timeout: 1800000
+
+- scm: 
+    name: terraform-docker-agent-Repository
+    scm:
+      - git:
+          url: https://github.com/lminhthuan225/terraform-docker-agent.git
+          clean:
+            before: true
+          refspec: refs/heads/main
+
+- job:
+    name: Build-Docker-Agent
+    description: 'build docker agent job'
+    properties:
+      - build-discarder:
+          days-to-keep: 3
+          num-to-keep: 3
+          artifact-days-to-keep: 14
+          artifact-num-to-keep: 1
+    scm:
+      - 'terraform-docker-agent-Repository'
 
 - job: 
     name: Create_Agent_Node
@@ -156,6 +192,10 @@
     dsl: |
       def buildResult = ""
       def isAgent1Online = Jenkins.instance.getNode('agent1').toComputer().isOnline()
+      def buildAirJ18Result = ""
+      def getBuildFolder(buildNumber, jobName) {{
+        return "~/jobs/$jobName/builds/$buildNumber/archive"
+      }}
       node {{
         stage('Pull SC from two repositories') {{
           parallel agentNode: {{
@@ -169,25 +209,42 @@
             }}
           }},
           masterNode: {{ 
-            build job: "{project_prefix}_AirJ18"
+            buildAirJ18Result = build job: "{project_prefix}_AirJ18"
           }}
         }}
         stage('Update Jenkins plugins') {{
           def buildNumber =  buildResult.getNumber()
           def jobName = buildResult.buildVariables.JOB_NAME
-          environment {{
-            JENKINS_API_TOKEN = credentials('jenkins-api-token')
+          def JENKINS_API_TOKEN = ""
+          def creds = com.cloudbees.plugins.credentials.CredentialsProvider.lookupCredentials(
+              com.cloudbees.plugins.credentials.Credentials.class,
+              Jenkins.instance,
+              null,
+              null
+              );
+          for(c in creds) {{
+            if(c.id == "jenkins-api-token") {{
+              JENKINS_API_TOKEN=c.secret
+            }}
           }}
-          sh "~/jobs/$jobName/builds/$buildNumber/archive/updateJenkins.sh 8888 $JENKINS_API_TOKEN"
+          withCredentials([string(credentialsId: 'jenkins-api-token', variable: 'JENKINS_API_TOKEN3')]) {{
+            def scriptFolder = getBuildFolder(buildNumber, jobName)
+            sh("$scriptFolder/updateJenkins.sh 8888 skqist225 $JENKINS_API_TOKEN3")
+          }}
         }}
         stage('Build source code from AirJ18-Repository') {{
-          echo xin chao
+          def buildNumber = buildAirJ18Result.getNumber()
+          def jobName = buildAirJ18Result.buildVariables.JOB_NAME
+          def sourceCodeFolder = getBuildFolder(buildNumber, jobName)
+          sh "mvn clean package -f $sourceCodeFolder/Backend/pom.xml"
+        }}
+        stage('Push artifact to S3') {{
+          def buildNumber = buildAirJ18Result.getNumber()
+          def jobName = buildAirJ18Result.buildVariables.JOB_NAME
+          def artifactFolder = getBuildFolder(buildNumber, jobName)
+          sh "$aws s3 cp $artifactFolder/Backend/target/AirTNT-0.0.1-SNAPSHOT.war s3://airj18/AirJ18war"
         }}
       }}
-
-         
-# sh "mvn clean packge -f */pom.xml"
-#            build job: "{project_prefix}_AirJ18" 
 
 - job-group:
     name: 'pineline-job-group'
@@ -208,5 +265,6 @@
       - '{name}-nested-view'
     jobs: 
       - 'pineline-job-group'
+      - 'Build-Docker-Agent'
       - 'Create_Agent_Node'
     
