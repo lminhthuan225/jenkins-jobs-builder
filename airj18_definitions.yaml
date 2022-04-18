@@ -1,8 +1,37 @@
+#Plugin: Nested View
 - view-template:
-    name: '{name}-jjb-view'
-    description: 'AirJ18 View'
-    view-type: list
-    regex: ''
+    name: '{name}-nested-view'
+    view-type: nested
+    description: 'My Nested View'
+    views:
+      - name: '{name}-checkout-view'
+        description: 'AirJ18 Checkout View'
+        view-type: list
+        job-name:
+          - 'Checkout_SC_AirJ18'
+          - 'Checkout_SC_linux-shell-script'
+          - 'Checkout_SC_ansible-script'
+        columns:
+          - status
+          - weather
+          - job
+          - last-success
+          - last-failure
+          - last-duration
+          - build-button
+          - find-bugs
+          - favorite
+          - built-on
+          - desc
+      - name: '{name}-job-view'  
+        description: 'AirJ18 Job View'
+        view-type: list
+        job-name:
+          - 'AirJ18-pipeline'
+      - name: '{name}-visual-pipeline-view'
+        description: 'AirJ18 Pipeline view'
+        view-type: pipeline
+        first-job: AirJ18-pipeline
 
 - scm:
     name: AirJ18-Repository
@@ -27,11 +56,16 @@
           branches:
             - origin/main
 
-- scm:
-    name: two-Repository
+- scm: 
+    name: ansible-script-Repository
     scm:
-      - linux-shell-script-Repository
-      - AirJ18-Repository 
+      - git:
+          url: https://github.com/skqist225/ansible-script.git
+          credentials-id: jenkins-skqist225-github-token
+          repo-name: ansible-script
+          clean:
+            before: true
+          refspec: refs/heads/main
 
 - job-template:
     name: 'Checkout_SC_{repo_name}'
@@ -52,6 +86,56 @@
           latest-only: true
           only-if-success: true
 
+- build: 
+    name: publishEc2
+    builders:
+      - publish-over-ssh:
+          site: 'server.example.com'
+          target: 'dest/dir'
+          source: 'base/source/dir/**'
+          timeout: 1800000
+
+- job: 
+    name: Create_Agent_Node
+    parameters:
+      - node:
+          name: SLAVE_NAME
+          description: "Select slave"
+          allowed-slaves: []
+          ignore-offline-nodes: true
+          allowed-multiselect: false     
+      - string:
+          name: JENKINS_SERVER_URL
+          default: http://localhost:8888/
+          description: 'Jenkins server url for jenkins-cli'
+      - string:
+          name: NODE_NAME
+          default: agent
+      - choice:
+          name: SSH_PORT
+          choices: 
+            - "22" 
+            - "7900"
+            - "7901"
+            - "7902"
+            - '7903'
+            - "7904"
+            - "7905"
+          description: "SSH port available options"
+      - credentials:
+          name: SSH_CREDENTIALS
+          type: sshkey 
+          default: 'jenkins-using-gerrit-ssh'
+          description: "Ssh key to access jenkins node"
+      - credentials:
+          name: JENKINS_API_TOKEN
+          type: secrettext
+          default: jenkins-api-token
+    builders: 
+      - shell: 
+          command: ./create-jenkins-node.sh --server-url $JENKINS_SERVER_URL --node-name $NODE_NAME --ssh-port $SSH_PORT --token $JENKINS_API_TOKEN --user env.BUILD_USER_ID
+          unstable-return: 2
+
 - job-template:
     name: '{job_name}-pipeline'
     description: 'written by: {maintainer}'
@@ -71,10 +155,16 @@
     project_prefix: Checkout_SC
     dsl: |
       def buildResult = ""
+      def isAgent1Online = Jenkins.instance.getNode('agent1').toComputer().isOnline()
       node {{
         stage('Pull SC from two repositories') {{
           parallel agentNode: {{
-            node("agent1") {{
+            echo "$isAgent1Online"
+            if (isAgent1Online == true) {{
+              node("agent1") {{
+                buildResult = build job: "{project_prefix}_linux-shell-script"
+              }}
+            }} else {{
               buildResult = build job: "{project_prefix}_linux-shell-script"
             }}
           }},
@@ -85,15 +175,18 @@
         stage('Update Jenkins plugins') {{
           def buildNumber =  buildResult.getNumber()
           def jobName = buildResult.buildVariables.JOB_NAME
-          
-          sh "~/jobs/$jobName/builds/$buildNumber/archive/updateJenkins.sh 8888"
+          environment {{
+            JENKINS_API_TOKEN = credentials('jenkins-api-token')
+          }}
+          sh "~/jobs/$jobName/builds/$buildNumber/archive/updateJenkins.sh 8888 $JENKINS_API_TOKEN"
         }}
         stage('Build source code from AirJ18-Repository') {{
-          sh "mvn clean packge -f */pom.xml"
+          echo xin chao
         }}
       }}
 
-
+         
+# sh "mvn clean packge -f */pom.xml"
 #            build job: "{project_prefix}_AirJ18" 
 
 - job-group:
@@ -101,6 +194,7 @@
     repo_name:
       - AirJ18
       - linux-shell-script
+      - ansible-script
     jobs:
       - 'Checkout_SC_{repo_name}':
           maintainer: thuanle
@@ -110,8 +204,9 @@
 
 - project:
     name: airj18-project
-    # views:
-    #   - '{name}-jjb-view'
+    views:
+      - '{name}-nested-view'
     jobs: 
       - 'pineline-job-group'
+      - 'Create_Agent_Node'
     
